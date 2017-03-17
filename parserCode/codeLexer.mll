@@ -20,17 +20,17 @@ rule read =
 	| "("   		{ LPAREN }
 	| ")"   		{ RPAREN }
 	| "="   		{ EQUALS }
-	| "~"				{ NOT }	
+	| "~"			{ NOT }	
 	| "->"			{ IMPLIES }
-	| ":"				{ COLON }
-	| ";"				{ SEMICOLON }
+	| ":"			{ COLON }
+	| ";"			{ SEMICOLON }
 	| "--"			{ DDASH }
-	| "{"				{ LBRACE }
-	| "}"				{ RBRACE }
-	| "\\/"			{ OR }
-	| "^"			{ AND }
-	| "exists"	{ EXISTS }
-	| "forall"	{ FORALL } 
+	| "{"			{ LBRACE }
+	| "}"			{ RBRACE }
+	| "|"			{ OR }
+	| "&"			{ AND }
+	| "exists"		{ EXISTS }
+	| "forall"		{ FORALL } 
 	| "read"		{ READ }
 	| "write"		{ WRITE }
 	| "Test"		{ TEST }
