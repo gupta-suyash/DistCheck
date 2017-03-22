@@ -1,3 +1,5 @@
+open Printf
+
 type relation = 
 | Vis
 | So
@@ -25,3 +27,7 @@ type contract = {
 }
 
 type stsem = contract list
+
+
+let pp_st ast = 
+	printf "Hello\n" 

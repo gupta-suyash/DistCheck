@@ -45,3 +45,15 @@ type code = {
 	pg: program;
 	cns: constr;
 }
+
+let pp_valmap vmap =  
+	match vmap with (var,value) -> printf "%s=%d\n" var value
+
+let rec pp_initial initmap = 
+	match initmap with 
+	| [] -> printf ""
+	| h :: t -> (pp_valmap h; pp_initial t)
+
+let pp_code ast = 
+	printf "Code is:\n";
+	pp_initial ast.init
