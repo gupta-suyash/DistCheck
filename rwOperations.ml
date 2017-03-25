@@ -43,85 +43,79 @@ type code = {
 	cns: constr;
 }
 
-(* Add operations. *)
-let createValmap var value = (var,value)
 
-let setInitial vmap init = vmap :: init 
+(* Methods on taggedOper. *)
+let compareSt x y = if (compare x y) == 0 
+			then true else false
 
-let createRead var = Read var
+let checkVar op1 op2 = 
+	match op1,op2 with
+	| Read x, Read y  	| Read x, Write (y,_) 
+	| Write (x,_), Read y 
+	| Write (x,_), Write (y,_) -> compareSt x y 
+	
+let sameTagOper op1 op2 = 
+	if (compare (fst op1) (fst op2)) == 0 
+		then true else false
 
-let createWrite vmap = Write vmap 
-
-let add_rwop optype vmap = 
-	match optype with 
-	| "R" -> createRead (fst vmap)
-	| "W" -> createWrite vmap
-	| _ -> createRead (fst vmap)  (* This case should not occur, throw error *)
-
-let add_taggedOper tag optype vmap = 
-	(tag,(add_rwop optype vmap))
-
-let rec sessionExists sid prog = 
-	match prog with 
-	| [] -> false
-	| h::t -> if (compare sid h.sid) == 0 
-							then true else sessionExists sid t
-
-let addOperToSession sid tag optype vmap oplist = 
-	{sid=sid; oper=((add_taggedOper tag optype vmap) :: oplist)}
-
-let rec modifySession sid tag optype vmap prog = 
-	match prog with 
-	| [] -> (addOperToSession sid tag optype vmap []) :: []
-	| h::t -> if (compare sid h.sid) == 0 
-							then (addOperToSession  h.sid tag optype vmap h.oper) :: t
-							else h :: (modifySession sid tag optype vmap t)
-
-let createAtom vmap = Atom vmap
-
+let rec getIndex allOps op index = 
+	match allOps with 
+	| [] -> 0
+	| h::t -> if (sameTagOper h op) 
+			then index else (getIndex t op (index+1))
 
 (* Print methods *)
 
 let pp_valmap vmap =  
-	match vmap with (var,value) -> printf "%s=%d\n" var value
+	match vmap with (var,value) -> printf "%s=%d" var value
 
 let pp_rwop oper = 
 	match oper with 
-	| Read var -> printf "%s\n" var
-	| Write vmap -> pp_valmap vmap
+	| Read var -> printf "Read %s" var
+	| Write vmap -> printf "Write "; pp_valmap vmap
 
 let pp_taggedOper toper =
 	match toper with (s,oper) -> (printf "%s:" s; pp_rwop oper)
 
-let pp_session_id s = printf "%d\n" s.sid
+let pp_session_id sid = printf "Session %d\n" sid
 
 let rec pp_session_opers oplist = 
 	match oplist with 
-  | [] -> printf "Empty\n"
-  | h :: t -> (pp_taggedOper h; pp_session_opers t) 
+	| [] -> printf ""
+	| h :: t -> (pp_taggedOper h; printf "\n"; 
+			pp_session_opers t) 
+
+let pp_session sess = 
+	pp_session_id sess.sid;
+	pp_session_opers sess.oper	
+
+let rec pp_program prog = 
+	match prog with 
+	| [] -> printf "";
+	| h::t -> (pp_session h; printf "---\n"; pp_program t)
 
 let rec pp_initial initmap = 
 	match initmap with 
-  | [] -> printf "Empty\n"
-  | h :: t -> (pp_valmap h; pp_initial t)
+	| [] -> printf ""
+	| h :: t -> (pp_valmap h; pp_initial t)
 
 let rec pp_prop p = 
 	match p with 
-	| Atom v -> pp_valmap v
-	| Not v -> printf ""
+	| Atom (i,v) -> printf "%d:" i; pp_valmap v
+	| Not v -> pp_not v
 	| And v -> pp_and v
 	| Or v -> pp_or v
-  | Implies (v1,v2) -> (printf "")
+	| Implies (v1,v2) -> pp_implies (v1,v2)
 and pp_not p = 
 	(printf "~"; pp_prop p)
 and pp_and p = 
 	match p with 
 	| [] -> printf ""
-	| h::t -> (pp_prop h; printf "/\\"; pp_and t)
+	| h::t -> (pp_prop h; printf "&"; pp_and t)
 and pp_or p = 
 	match p with 
 	| [] -> printf ""
-	| h::t -> (pp_prop h; printf "\\/"; pp_or t)
+	| h::t -> (pp_prop h; printf "|"; pp_or t)
 and pp_implies p = 
 	match p with (p1,p2) -> (pp_prop p1; printf "->"; pp_prop p2)
 
@@ -130,5 +124,11 @@ let pp_constr cns =
 	| ForallStates p -> (printf "forall: "; pp_prop p) 
 	| ExistsStates p -> (printf "exists: "; pp_prop p)
 	| NotExistsState p -> (printf "~ exists: "; pp_prop p)
+
+let pp_code ast = 
+	printf "Testcase:\n";
+	pp_initial ast.init; 
+	pp_program ast.pg;
+	pp_constr ast.cns
 
 
