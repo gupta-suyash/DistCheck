@@ -25,7 +25,7 @@ type initial = valmap list
 
 (* Constraint Info *)
 type prop =
-| Atom of int * valmap 
+| Atom of string * valmap 
 | Not of prop
 | And of prop list
 | Or of prop list
@@ -64,6 +64,26 @@ let rec getIndex allOps op index =
 	| h::t -> if (sameTagOper h op) 
 			then index else (getIndex t op (index+1))
 
+(* Generating Hash index table for all operations. *)
+let rec addToHashTable allOps hashtb count = 
+	match allOps with 
+	| [] -> hashtb
+	| h::t -> (Hashtbl.add hashtb h count; 
+			addToHashTable t hashtb (count+1))
+
+(* Single list of all operations. *)
+let rec getAllOperators prog = 
+	match prog with
+	| [] -> []
+	| h::t -> List.append (getAllOperators t) h.oper
+
+(* Add initial condition as Write operations, named as "i0,i1...". *)
+let rec addInitialCond init oplist count = 
+	match init with 
+	| [] -> oplist
+	| h::t -> (("i" ^ (string_of_int count)), (Write h)) :: 
+			(addInitialCond t oplist (count+1))
+
 (* Print methods *)
 
 let pp_valmap vmap =  
@@ -101,7 +121,7 @@ let rec pp_initial initmap =
 
 let rec pp_prop p = 
 	match p with 
-	| Atom (i,v) -> printf "%d:" i; pp_valmap v
+	| Atom (i,v) -> printf "%s:" i; pp_valmap v
 	| Not v -> pp_not v
 	| And v -> pp_and v
 	| Or v -> pp_or v
@@ -131,4 +151,9 @@ let pp_code ast =
 	pp_program ast.pg;
 	pp_constr ast.cns
 
+(* Prints all the strings in a list. *)
+let rec pp_listOfString allvar = 
+	match allvar with
+	| [] -> printf ""
+	| h::t -> (printf "%s " h; pp_listOfString t)
 
