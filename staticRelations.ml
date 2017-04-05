@@ -211,10 +211,7 @@ let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl =
 			else 	[]) in 
 	let othasrt = addVisOther ctx vis rval rd sid wrlist efftbl in 
 	let cwset = List.append wrset othasrt in 
-	let wset = (  if (List.length cwset) == 1 
-			then cwset
-			else [makeOrOfAnd ctx (List.hd cwset) (List.tl cwset)]) in 
-
+	 
 	let initwrt = List.hd (List.rev inwrts) in
 	let eff = Hashtbl.find efftbl (fst rd) in
 	let fapp = mk_app ctx rval [eff] in 
@@ -232,47 +229,11 @@ let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl =
 	let ntwrt = List.append ntwrt1 ntwrt2 in
 	let visinit = mkAllAnd ctx eq ntwrt in
 
+	let aset = visinit :: cwset in
+	let wset = (  if (List.length aset) == 1 
+			then aset
+			else [makeOrOfAnd ctx (List.hd aset) (List.tl aset)]) in
 	wset
-(* TODO -- OR visinit and wset *)
-
-(*
-
-(pp_taggedOper rd; printf "\n"; pp_session_opers wrts; printf "\n";
-	wrts)
-
-(printf "\n"; printf "Writes per session\n"; pp_program wrlist; orwrts))
-
-*)
-
-
-(*
-
-let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl = 
-	let inwrts = Hashtbl.find_all ownwrt rd in 	
-	let len = List.length inwrts in 
-	let wrset = 
-	(if len > 1 
-	then	let revwrt = List.rev inwrts in
-		let wrts = List.rev (List.tl revwrt) in 
-		(pp_taggedOper rd; printf "\n"; pp_session_opers wrts; printf "\n";
-		let ownasrt = addVisRel ctx vis rval rd wrts efftbl in
-		let orwrts = (  if (List.length ownasrt) == 1 
-			then ownasrt
-			else [makeOrOfAnd ctx (List.hd ownasrt) (List.tl ownasrt)]) in 
-		orwrts)
-	else []) in 
-	let othasrt = addVisOther ctx vis rval rd sid wrlist efftbl in 
-	let odrwrt = (  if (List.length othasrt) == 1 
-			then othasrt
-			else [makeOrOfAnd ctx (List.hd othasrt) (List.tl othasrt)]) in 
-	odrwrt
-
-
-*)
-
-
-
-
 
 
 (*

@@ -14,6 +14,8 @@ open Z3.Arithmetic.Integer
 
 open RwOperations
 open StaticRelations
+open DefinedLemmas
+open EncodeConstraint
 open TestMethods
 open Printf
 
@@ -231,12 +233,36 @@ let ulist = List.append tlist1 hlist4 in
 let ulist2 = List.append ulist sobind in
 let ulist3 = List.append ulist2 samebind in
 let vlist = List.append ulist3 visbind in
+
+let so_q1 = so_irreflexive ctx effect so in 
+let so_q2 = so_same_session ctx effect so ssid in
+let so_q3 = so_transitivity ctx effect so in
+
+let same_q1 = same_equal_var ctx effect same sval in 
+let same_q2 = same_symmetric ctx effect same in
+let same_q3 = same_transitivity ctx effect same in
+
+let vis_q1 = vis_irreflexive ctx effect vis in
+let vis_q2 = vis_anti_symmetric ctx effect vis in
+
+let hb_q1 = hb_irreflexive ctx effect hb in
+let hb_q2 = hb_define ctx effect vis so hb in
+let hb_q3 = hb_transitivity ctx effect hb in
+let hb_all = hb_acyclic ctx effect hb oper vis same rval kind in 
+
+let rels  = [so_q1;so_q2;so_q3;same_q1;same_q2;same_q3;
+		vis_q1;vis_q2;hb_q1;hb_q2;hb_q3;hb_all] in 
+let nvlist = List.append vlist rels in 
+
+let cnstr = assertConstraints ctx rval test.cns efftbl in
+let clist = List.append nvlist [cnstr] in
+
 (*
 let eq = (addToGoal ctx effect hlist) in
 	(printf "Starting solver: \n"; 
 	constSolver ctx eq)
 *)
-(printf "Starting solver: \n"; constSolver ctx vlist)
+(printf "Starting solver: \n"; constSolver ctx clist)
 (*
 printf "Hello addBasicDecl\n"
 *)
