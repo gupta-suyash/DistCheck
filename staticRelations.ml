@@ -98,143 +98,78 @@ let rec assertSameBinding ctx same oplist prgvar efftbl =
 			(setSameBinding ctx same oplist h efftbl)
 
 
-(* Adding Vis and rel -> (and (= (rval a) (rval b)) (vis b a)) 
-ctx	- context
-vis	- z3 function declaration for vis.
-rval	- z3 function declaration for rval (return value).
-rd	- read instruction
-wrts	- preceeding writes of the read.
-efftbl	- hashtable of effects. *)
-let rec addVisRel ctx vis rval rd wrts efftbl = 
+let rec makeOrOfVal ctx frval iand andlist =
+	match andlist with 
+	| [] -> (let elem = snd iand in mk_eq ctx frval elem) 
+	| h::t -> let elem = snd h in 
+		  let eq = mk_eq ctx frval elem in 
+		  mk_or ctx [eq;(makeOrOfVal ctx frval iand t)]
+
+let rec addVisRel ctx vis rval rd wrts efftbl velse = 
 	match wrts with 
 	| [] -> []
 	| h::t -> match h with (s1,e1) -> 
+		  let esort = Integer.mk_sort ctx in 
+		  let efvar = (Expr.mk_const ctx 
+				(Symbol.mk_string ctx ("e"^s1))) esort in
 		  let eff1 = Hashtbl.find efftbl (fst rd) in
 		  let eff2 = Hashtbl.find efftbl s1 in
-		  let f1 = mk_app ctx rval [eff1] in
 		  let f2 = mk_app ctx rval [eff2] in
 		  let f3 = mk_app ctx vis [eff2;eff1] in
-		  let f4 = mk_true ctx in 
-		  let eqval = mk_eq ctx f1 f2 in 
-		  let eqvis = mk_eq ctx f3 f4 in
-		  mk_and ctx [eqval;eqvis] :: 
-		  (addVisRel ctx vis rval rd t efftbl)
+		  let fite = mk_ite ctx f3 f2 velse in
+		  ((mk_eq ctx efvar fite), efvar) :: 
+		  (addVisRel ctx vis rval rd t efftbl velse)
 
-let rec getVisWrites ctx vis rval rd oplist efftbl = 
+let rec getVisWrites ctx vis rval rd oplist efftbl velse = 
 	match oplist with 
 	| [] -> []
 	| h::t -> if (checkVar (snd rd) (snd h))
-		  then List.append (getVisWrites ctx vis rval rd t efftbl) 
-			(addVisRel ctx vis rval rd (h::[]) efftbl)
-		  else (getVisWrites ctx vis rval rd t efftbl)
+		  then List.append (getVisWrites ctx vis rval rd t efftbl velse) 
+			(addVisRel ctx vis rval rd (h::[]) efftbl velse)
+		  else (getVisWrites ctx vis rval rd t efftbl velse)
 
 (* Adding vis relations for reads to writes in other sessions. *)
-let rec addVisOther ctx vis rval rd sid wrlist efftbl = 
+let rec addVisOther ctx vis rval rd sid wrlist efftbl velse = 
 	match wrlist with 
 	| [] -> []
 	| h::t -> if h.sid != sid 
-		  then List.append (addVisOther ctx vis rval rd sid t efftbl)
-			(getVisWrites ctx vis rval rd h.oper efftbl)
-		  else  (addVisOther ctx vis rval rd sid t efftbl)
+		  then List.append (addVisOther ctx vis rval rd sid t efftbl velse)
+			(getVisWrites ctx vis rval rd h.oper efftbl velse)
+		  else  (addVisOther ctx vis rval rd sid t efftbl velse)
 
-let rec mkOtherAnd ctx vis rval eff1 rd otrwrt efftbl eq = 
-	match otrwrt with 
-	| [] -> eq
-	| h::t -> if checkVar (snd rd) (snd h) 
-		  then (match h with (s,e) ->
-		  	let eff2 = Hashtbl.find efftbl s in
-		  	let f = mk_app ctx vis [eff2;eff1] in 
-		  	let nf = mk_not ctx f in
-		  	let andeff = mkOtherAnd ctx vis rval eff1 rd t efftbl eq in 
-		  	mk_and ctx [nf;andeff])
-		  else mkOtherAnd ctx vis rval eff1 rd t efftbl eq
-
-
-(* And a set of relations
-eq	- the z3 eq statement created earlier. 
-ntwrt	- list of relatons. *)
-let rec mkAllAnd ctx eq ntwrt = 
-	match ntwrt with 
-	| [] -> eq
-	| h::t -> mk_and ctx [h;(mkAllAnd ctx eq t)]
-
-
-(* Adding Vis rel -> (= (vis b a) false) 
-vis	- z3 function declaration for vis.
-rd	- read instruction
-wrts	- preceeding writes of the read.
-efftbl	- hashtable of effects. *)
-let rec addNotVisRel ctx vis rd wrts efftbl = 
-	match wrts with 
-	| [] -> []
-	| h::t -> match h with (s1,e1) -> 
-		  let eff1 = Hashtbl.find efftbl (fst rd) in
-		  let eff2 = Hashtbl.find efftbl s1 in
-		  let f1 = mk_app ctx vis [eff2;eff1] in
-		  let f2 = mk_false ctx in 
-		  (mk_eq ctx f1 f2 ::
-		  addNotVisRel ctx vis rd t efftbl)
-
-
-let rec addNotVisOtherSess ctx vis rd oplist efftbl = 
-	match oplist with 
+let rec retEquations eqset = 
+	match eqset with 
 	| [] -> [] 
-	| h::t -> if checkVar (snd rd) (snd h) 
-		  then List.append (addNotVisOtherSess ctx vis rd t efftbl) 
-				(addNotVisRel ctx vis rd [h] efftbl)
-		  else (addNotVisOtherSess ctx vis rd t efftbl)
+	| h::t -> (fst h) :: (retEquations t)
 
-let rec addNotOtherVis ctx vis rd sid wrlist efftbl = 
-	match wrlist with 
-	| [] -> []
-	| h::t -> if h.sid != sid 
-		  then List.append (addNotOtherVis ctx vis rd sid t efftbl) 
-				(addNotVisOtherSess ctx vis rd h.oper efftbl)
-		  else (addNotOtherVis ctx vis rd sid t efftbl)
-
- 
-(* Sets all the static vis relations
-vis	- z3 function declaration for vis.
-rval	- z3 function declaration for rval (return value).
-init	- initial condition
-rd	- read instruction
-sid	- session id for read effect.
-ownwrt	- hashtable of reads consisting of same session writes (use chains).
-wrlist	- session-wise list of all writes.
-efftbl	- hashtable of effects. *)
-let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl = 
+let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl =
 	let inwrts = Hashtbl.find_all ownwrt rd in 	
 	let len = List.length inwrts in  
+	let incond = List.hd (List.rev inwrts) in
+	let velse = (	match incond with (s,op) -> 
+		   	match op with
+			| Read n -> Integer.mk_numeral_i ctx 0
+			| Write v -> Integer.mk_numeral_i ctx (snd v)) in
 	let wrset = (	if len > 1 
-			then	let wrts = List.tl (List.rev inwrts) in
-				addVisRel ctx vis rval rd wrts efftbl
-			else 	[]) in 
-	let othasrt = addVisOther ctx vis rval rd sid wrlist efftbl in 
-	let cwset = List.append wrset othasrt in 
-	 
-	let initwrt = List.hd (List.rev inwrts) in
-	let eff = Hashtbl.find efftbl (fst rd) in
-	let fapp = mk_app ctx rval [eff] in 
-	let eq = mk_eq ctx fapp (
-		match initwrt with (s,op) -> 
-		match op with
-		| Read n -> Integer.mk_numeral_i ctx 0
-		| Write v -> Integer.mk_numeral_i ctx (snd v)) in 
-	let ntwrt1 = (	if len > 1
 			then let wrts = List.tl (List.rev inwrts) in
-				addNotVisRel ctx vis rd wrts efftbl
-			else []) in 
-
-	let ntwrt2 = addNotOtherVis ctx vis rd sid wrlist efftbl in 
-	let ntwrt = List.append ntwrt1 ntwrt2 in
-	let visinit = mkAllAnd ctx eq ntwrt in
-
-	let aset = visinit :: cwset in
-	let wset = (  if (List.length aset) == 1 
-			then aset
-			else [makeOrOfAnd ctx (List.hd aset) (List.tl aset)]) in
-	wset
-
+			     addVisRel ctx vis rval rd wrts efftbl velse
+			else 	[]) in
+        
+	let othasrt = addVisOther ctx vis rval rd sid wrlist efftbl velse in
+	let cwset = List.append wrset othasrt in	
+	let eff1 = Hashtbl.find efftbl (fst rd) in
+ 	let f2 = mk_app ctx rval [eff1] in
+	let anset = (if (List.length cwset) == 0 
+		    then [(mk_eq ctx f2 velse)]
+		    else (if (List.length cwset) == 1 
+			  then (let evar = snd (List.hd cwset) in
+				let eq = mk_eq ctx f2 evar in
+				let elem = fst (List.hd cwset) in [elem;eq])
+			  else (let orlst = (makeOrOfVal ctx f2 (List.hd cwset) 
+					(List.tl cwset)) in  
+				let vislst = retEquations cwset in 
+				orlst :: vislst))) in 
+	anset
 
 (*
 ctx	- context
