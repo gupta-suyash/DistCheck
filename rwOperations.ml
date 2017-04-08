@@ -45,7 +45,7 @@ type code = {
 
 
 (* Methods on taggedOper. *)
-let compareSt x y = if (compare x y) == 0 
+let compareSt x y = if (String.compare x y) == 0 
 			then true else false
 
 let checkVar op1 op2 = 
@@ -83,6 +83,41 @@ let rec addInitialCond init oplist count =
 	| [] -> oplist
 	| h::t -> (("i" ^ (string_of_int count)), (Write h)) :: 
 			(addInitialCond t oplist (count+1))
+
+(* Make use chains, which tell all writes in same session. 
+oplist 	- list of all the defs for a read, that is set of writes.
+op	- the specific read
+usetb	- hashtable for storing reads. *)
+let rec addAllToTbl oplist op usetb = 
+	match oplist with 
+	| [] -> usetb
+	| h::t -> (Hashtbl.add usetb op h;
+			addAllToTbl t op usetb) 
+
+(* Constructs def/use chains. 
+oplist - set of effects.
+(deftb,usetb) - hashtables for storing def/use chains. *) 	 
+let rec useChains oplist (deftb,usetb) = 
+	match oplist with 
+	| [] -> (deftb,usetb)
+	| h::t -> useChains t (
+		  match h with (s,op) ->
+		  match op with 
+		  | Read s -> (deftb, addAllToTbl 
+				(List.rev (Hashtbl.find_all deftb s)) h usetb)
+		  | Write v -> (Hashtbl.add deftb (fst v) h; (deftb,usetb)))
+
+(* Creating a effect to session-id hashtable for quicker acces. *)
+let rec addEffToSess sid oplist hashtb = 
+	match oplist with 
+	| [] -> hashtb
+	| h::t -> (Hashtbl.add hashtb h sid; addEffToSess sid t hashtb)
+
+let rec createEfftSessMap prog hashtb =  
+	match prog with 
+	| [] -> hashtb
+	| h::t -> createEfftSessMap t (addEffToSess h.sid h.oper hashtb)
+
 
 (* Print methods *)
 
@@ -156,4 +191,15 @@ let rec pp_listOfString allvar =
 	match allvar with
 	| [] -> printf ""
 	| h::t -> (printf "%s " h; pp_listOfString t)
+
+(* Prints use chains for the reads in the oplist. *)
+let rec pp_use_chains oplist usehtb = 
+	match oplist with 
+	| [] -> printf ""
+	| h::t -> match h with (s,op) ->
+		  match op with 
+		  | Read s -> (pp_taggedOper h; printf " --> "; 
+				pp_taggedOper (Hashtbl.find usehtb h); 
+				printf "\n"; pp_use_chains t usehtb)
+		  | Write v -> pp_use_chains t usehtb
 
