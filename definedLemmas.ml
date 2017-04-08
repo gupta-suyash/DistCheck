@@ -21,16 +21,18 @@ let so_irreflexive ctx effect so =
 	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 (* (assert (forall ((x effect) (y effect))
-        ( =>    (so x y) (= (ssid x) (ssid y))))) *)
-let so_same_session ctx effect so ssid =
+        ( =>    (so x y) (and (= (ssid x) (ssid y)) (same x y))))) *)
+let so_same_session ctx effect so ssid same =
 	let x = (Expr.mk_const ctx (Symbol.mk_string ctx "x") effect) in 
 	let y = (Expr.mk_const ctx (Symbol.mk_string ctx "y") effect) in 
 	let vars = [x;y] in
 	let f1 = mk_app ctx so [x;y] in 
 	let f2 = mk_app ctx ssid [x] in
 	let f3 = mk_app ctx ssid [y] in
+	let f4 = mk_app ctx same [x;y] in
 	let eq = mk_eq ctx f2 f3 in
-	let imply = mk_implies ctx f1 eq in
+	let iand = mk_and ctx [eq;f4] in
+	let imply = mk_implies ctx f1 iand in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
 	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
@@ -182,7 +184,6 @@ let hb_anti_symmetric ctx effect hb =
 	let imply = mk_implies ctx f1 fnot in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
 	let qexp = Quantifier.expr_of_quantifier qan in qexp
-
 
 (* 
 (assert (forall ((x effect) (y effect) (z effect))

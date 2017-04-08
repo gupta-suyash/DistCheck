@@ -1,0 +1,19 @@
+{x=0; y=0;}
+1
+a: write x=1;
+b: write x=2;
+c: read x;
+d: write y=1;
+e: write y=2;
+f: write x=3;
+--
+2
+g: write x=4;
+h: write x=5;
+i: write y=3;
+j: write y=4;
+k: read y;
+l: write y=5;
+--
+Test:
+exists (c:x=5 & k:y=4)

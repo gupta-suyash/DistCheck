@@ -1,0 +1,14 @@
+{x=0; y=0;}
+1
+a: read x;
+b: write y=9;
+c: write y=8;
+g: write x=1;
+--
+2
+d: read y;
+e: write x=3;
+f: write x=4;
+--
+Test:
+exists (a:x=4 & d:y=8)

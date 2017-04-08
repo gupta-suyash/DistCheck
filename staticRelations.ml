@@ -17,25 +17,28 @@ open TestMethods
 open Printf
 
 (* Asserts forall effect2, (so effect1 effect2) = true (if possible) 
-op	- effect1 *)
+op1	- instruction for effect1 *)
 (* Extra but correct bindings being generated. 
 No use of trasitivity property then. *)
-let rec relateSo ctx so op oplist efftbl = 
-	match oplist with 
+let rec relateSo ctx so op1 oplist efftbl =
+	match oplist with
 	| [] -> []
-	| h::t -> match h with (s,opr) -> 
-		  let eff1 = Hashtbl.find efftbl op in
-		  let eff2 = Hashtbl.find efftbl s in
-		  let fapp = mk_app ctx so [eff1;eff2] in 
-		  (mk_eq ctx fapp (mk_true ctx) :: 
-			   relateSo ctx so op t efftbl) 
+	| h::t -> match op1 with (s1,opr1) -> 
+		  match h with (s2,opr2) -> 
+		  if checkVar opr1 opr2 
+		  then	let eff1 = Hashtbl.find efftbl s1 in
+			let eff2 = Hashtbl.find efftbl s2 in
+			let fapp = mk_app ctx so [eff1;eff2] in 
+			(mk_eq ctx fapp (mk_true ctx)) :: 
+			relateSo ctx so op1 t efftbl
+		  else	relateSo ctx so op1 t efftbl
 
 let rec setSoBinding ctx so oplist efftbl =
 	match oplist with 
 	| [] -> []
-	| h::t -> match h with (s,op) ->
-		  List.append (setSoBinding ctx so t efftbl)
-		  (relateSo ctx so s t efftbl)
+	| h::t -> List.append (setSoBinding ctx so t efftbl) 
+				(relateSo ctx so h t efftbl)
+
 
 (* Sets so bindings. 
 ctx	- context

@@ -1,0 +1,12 @@
+{x=0; y=0;}
+1
+a: write x=1;
+b: write x=2;
+c: read x;
+--
+2
+d: write x=3;
+e: write x=4;
+--
+Test:
+exists (c:x=2)

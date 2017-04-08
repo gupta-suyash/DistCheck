@@ -1,0 +1,19 @@
+{x=0; y=0;}
+1
+a: write x=1;
+b: read x;
+c: write y=9;
+--
+2
+d: read y;
+e: write x=3;
+i: read x;
+--
+3
+f: write y=2;
+g: read y;
+h: write y=4;
+j: read y;
+--
+Test:
+exists (b:x=1 & g:y=9)

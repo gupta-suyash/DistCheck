@@ -236,7 +236,7 @@ let ulist3 = List.append ulist2 samebind in
 let vlist = List.append ulist3 visbind in
 
 let so_q1 = so_irreflexive ctx effect so in 
-let so_q2 = so_same_session ctx effect so ssid in
+let so_q2 = so_same_session ctx effect so ssid same in
 let so_q3 = so_transitivity ctx effect so in
 
 let same_q1 = same_equal_var ctx effect same sval in 
