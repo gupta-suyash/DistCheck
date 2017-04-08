@@ -1,0 +1,1 @@
+forall (a:A)(b:A).((so ^ sameobj)(a,b) -> vis(a,b))

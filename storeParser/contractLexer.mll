@@ -21,15 +21,15 @@ rule read =
 	| ":"			{ COLON }
 	| ","			{ COMMA }
 	| "."			{ DOT }
-	| "|"			{ OR }
-	| "&"			{ AND }
+	| "&&"			{ AND }
+	| "||"			{ OR }
 	| "v"			{ UNION }
 	| "^"			{ INTER }
 	| "+"			{ PLUS }
 	| "forall"		{ FORALL }
 	| "R"			{ R }
 	| "W"			{ W }
-	| "O"			{ O } 
+	| "A"			{ RW }
 	| "vis"			{ VIS }
 	| "so"			{ SO }
 	| "sameobj"		{ SAMEOBJ }

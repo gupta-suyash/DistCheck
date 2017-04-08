@@ -98,49 +98,77 @@ let rec assertSameBinding ctx same oplist prgvar efftbl =
 			(setSameBinding ctx same oplist h efftbl)
 
 
-let rec makeOrOfVal ctx frval iand andlist =
-	match andlist with 
-	| [] -> (let elem = snd iand in mk_eq ctx frval elem) 
-	| h::t -> let elem = snd h in 
-		  let eq = mk_eq ctx frval elem in 
-		  mk_or ctx [eq;(makeOrOfVal ctx frval iand t)]
+(* VIS relations. *)
+(* Makes vis implication. 
+wr	- The effect in visibility relation with read effect. *)
+let makeVisImply ctx vis rval rd wr ieff efftbl = 
+	let eff1 = Hashtbl.find efftbl (fst rd) in
+	let eff2 = Hashtbl.find efftbl (fst wr) in
+	let fvis = mk_app ctx vis [eff2;eff1] in
+	let fval = mk_app ctx rval [eff2] in
+	let eq = mk_eq ctx ieff fval in
+	let imply = mk_implies ctx eq fvis in imply
 
-let rec addVisRel ctx vis rval rd wrts efftbl velse = 
-	match wrts with 
-	| [] -> []
-	| h::t -> match h with (s1,e1) -> 
-		  let esort = Integer.mk_sort ctx in 
-		  let efvar = (Expr.mk_const ctx 
-				(Symbol.mk_string ctx ("e"^s1))) esort in
-		  let eff1 = Hashtbl.find efftbl (fst rd) in
-		  let eff2 = Hashtbl.find efftbl s1 in
-		  let f2 = mk_app ctx rval [eff2] in
-		  let f3 = mk_app ctx vis [eff2;eff1] in
-		  let fite = mk_ite ctx f3 f2 velse in
-		  ((mk_eq ctx efvar fite), efvar) :: 
-		  (addVisRel ctx vis rval rd t efftbl velse)
+(*
+rd	- read effect
+ieff	- temporary effect variable
+totwrts	- set of all writes. *)
+let rec addAllVis ctx vis rval rd ieff totwrts efftbl = 
+	match totwrts with 
+	| [] -> [] 
+	| h::t -> (makeVisImply ctx vis rval rd h ieff efftbl) :: 
+			(addAllVis ctx vis rval rd ieff t efftbl)
 
-let rec getVisWrites ctx vis rval rd oplist efftbl velse = 
+(* equates all rvals. 
+wr	- the write effect in visibility relation with read effect. *)
+let makeRvals ctx rval ieff wr efftbl = 
+	let eff2 = Hashtbl.find efftbl (fst wr) in
+	let fval = mk_app ctx rval [eff2] in
+	mk_eq ctx ieff fval
+
+(*
+ieff	- temporary effect variable.
+wrhd	- write at the head of the write list.
+wrset	- remaining writes in the writelist. *)
+let rec addAllRval ctx rval ieff velse wrset efftbl = 
+	match wrset with 
+	| [] -> mk_eq ctx ieff velse
+	| h::t -> let pr = makeRvals ctx rval ieff h efftbl in 
+		  mk_or ctx [pr; (addAllRval ctx rval ieff velse t efftbl)]
+
+(* Gets all the writes. *)
+let rec getVisWrites rd oplist = 
 	match oplist with 
 	| [] -> []
 	| h::t -> if (checkVar (snd rd) (snd h))
-		  then List.append (getVisWrites ctx vis rval rd t efftbl velse) 
-			(addVisRel ctx vis rval rd (h::[]) efftbl velse)
-		  else (getVisWrites ctx vis rval rd t efftbl velse)
+		  then h :: (getVisWrites rd t)
+		  else (getVisWrites rd t)
 
-(* Adding vis relations for reads to writes in other sessions. *)
-let rec addVisOther ctx vis rval rd sid wrlist efftbl velse = 
+let rec addVisOther rd sid wrlist = 
 	match wrlist with 
 	| [] -> []
-	| h::t -> if h.sid != sid 
-		  then List.append (addVisOther ctx vis rval rd sid t efftbl velse)
-			(getVisWrites ctx vis rval rd h.oper efftbl velse)
-		  else  (addVisOther ctx vis rval rd sid t efftbl velse)
+	| h::t -> List.append (addVisOther rd sid t) (
+		  if h.sid != sid 
+		  then	(getVisWrites rd h.oper) 
+		  else  [])
 
-let rec retEquations eqset = 
-	match eqset with 
-	| [] -> [] 
-	| h::t -> (fst h) :: (retEquations t)
+(* Makes negation of all the vis. 
+wr	- the write effect in visibility relation with read effect. *)
+let makeNotVis ctx vis rd wr efftbl = 
+	let eff1 = Hashtbl.find efftbl (fst rd) in
+	let eff2 = Hashtbl.find efftbl (fst wr) in
+	let fvis = mk_app ctx vis [eff2;eff1] in
+	mk_not ctx fvis
+
+(*
+wrhd	- write at the head of the write list.
+wrlist	- remaining writes in the writelist. *) 
+let rec allVisNot ctx vis rd wrhd wrlist efftbl = 
+	match wrlist with 
+	| [] -> makeNotVis ctx vis rd wrhd efftbl
+	| h::t -> let exp =  makeNotVis ctx vis rd h efftbl in 
+		  mk_and ctx [exp; (allVisNot ctx vis rd wrhd t efftbl)]
+
 
 let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl =
 	let inwrts = Hashtbl.find_all ownwrt rd in 	
@@ -151,25 +179,38 @@ let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl =
 			| Read n -> Integer.mk_numeral_i ctx 0
 			| Write v -> Integer.mk_numeral_i ctx (snd v)) in
 	let wrset = (	if len > 1 
-			then let wrts = List.tl (List.rev inwrts) in
-			     addVisRel ctx vis rval rd wrts efftbl velse
-			else 	[]) in
-        
-	let othasrt = addVisOther ctx vis rval rd sid wrlist efftbl velse in
-	let cwset = List.append wrset othasrt in	
-	let eff1 = Hashtbl.find efftbl (fst rd) in
- 	let f2 = mk_app ctx rval [eff1] in
-	let anset = (if (List.length cwset) == 0 
-		    then [(mk_eq ctx f2 velse)]
-		    else (if (List.length cwset) == 1 
-			  then (let evar = snd (List.hd cwset) in
-				let eq = mk_eq ctx f2 evar in
-				let elem = fst (List.hd cwset) in [elem;eq])
-			  else (let orlst = (makeOrOfVal ctx f2 (List.hd cwset) 
-					(List.tl cwset)) in  
-				let vislst = retEquations cwset in 
-				orlst :: vislst))) in 
-	anset
+			then List.tl (List.rev inwrts)
+			else []) in 
+	let othrwrt = addVisOther rd sid wrlist in 
+	let totwrts = List.append wrset othrwrt in
+
+	let sint = Integer.mk_sort ctx in	
+	let ieff = (Expr.mk_const ctx (Symbol.mk_string ctx ("e"^(fst rd))) sint) in 
+	let orwrts = (	if (List.length totwrts) > 1 
+		     	then 	let thd = (List.hd totwrts) in 
+				let ttl = (List.tl totwrts) in
+				let andrval = (addAllRval ctx rval ieff 
+							velse totwrts efftbl) in
+				let vislist = addAllVis ctx vis rval rd ieff 
+							totwrts efftbl in 
+				let effs = allVisNot ctx vis rd thd ttl efftbl in 
+				let feq = mk_eq ctx ieff velse in		
+				let iff = mk_iff ctx feq effs in 
+				let rdeq = makeRvals ctx rval ieff rd efftbl in
+				(iff :: andrval :: rdeq :: vislist) 
+			else 	if (List.length totwrts) > 0  
+				then let thd = (List.hd totwrts) in
+				     let viseq = makeVisImply ctx vis rval rd 
+								thd ieff efftbl in
+(* try mk_iplies on velse*)	     let eff = makeNotVis ctx vis rd thd efftbl in
+				     let feq = mk_eq ctx ieff velse in		
+				     let imply = mk_and ctx [eff; feq] in 
+				     let rdeq = makeRvals ctx rval ieff rd efftbl in	
+				     [imply;rdeq;viseq]
+
+				else (mk_eq ctx ieff velse) :: [] ) in
+	orwrts
+	
 
 (*
 ctx	- context

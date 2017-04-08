@@ -13,7 +13,7 @@ open Printf
 (* asserts an atomic constraint. 
 cpair	- consists of the instruction label, and value to check. *)
 let assertAtom ctx rval cpair efftbl = 
-	printf "-----%s\n" (fst cpair);
+	(*printf "-----%s\n" (fst cpair);*)
 	let eff = Hashtbl.find efftbl (fst cpair) in 
 	let f1 = mk_app ctx rval [eff] in
 	mk_eq ctx f1 (Integer.mk_numeral_i ctx (snd (snd cpair))) 
@@ -24,7 +24,7 @@ let rec assertProperty ctx rval p efftbl  =
 	match p with 
 	| Atom (i,v) -> assertAtom ctx rval (i,v) efftbl
 	| Not v -> assertNot ctx rval v efftbl
-	| And v -> (printf "came to and"; 
+	| And v -> ((*printf "came to and"; *)
 			assertAnd ctx rval (List.hd v) (List.tl v) efftbl)
 	| Or v -> assertOr ctx rval (List.hd v) (List.tl v) efftbl
 	| Implies (v1,v2) -> assertImplies ctx rval v1 v2 efftbl
@@ -61,5 +61,4 @@ let assertConstraints ctx rval cnstr efftbl =
 	| ForallStates p 
 	| ExistsStates p  (* TODO - Make negative constraint. *)
 	| NotExistsState p -> 
-		(printf "Entered constraint\n";
-		assertProperty ctx rval p efftbl)
+		assertProperty ctx rval p efftbl

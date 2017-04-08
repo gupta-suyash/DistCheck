@@ -18,8 +18,7 @@ let so_irreflexive ctx effect so =
 	let fapp = mk_app ctx so [ (List.nth vars 0); (List.nth vars 0) ] in 
 	let fnot = mk_not ctx fapp in
 	let qan = (Quantifier.mk_forall_const ctx vars fnot None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 (* (assert (forall ((x effect) (y effect))
         ( =>    (so x y) (= (ssid x) (ssid y))))) *)
@@ -33,8 +32,7 @@ let so_same_session ctx effect so ssid =
 	let eq = mk_eq ctx f2 f3 in
 	let imply = mk_implies ctx f1 eq in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 (* (assert (forall ((x effect) (y effect) (z effect))
         ( =>    (and (so x y) (so y z)) (so x z)))) *)
@@ -49,8 +47,7 @@ let so_transitivity ctx effect so =
 	let sand = mk_and ctx [f1;f2] in
 	let imply = mk_implies ctx sand f3 in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 
 (* SameObj Properties. *)
@@ -67,8 +64,7 @@ let same_equal_var ctx effect same sval =
 	let eq = mk_eq ctx f2 f3 in
 	let imply = mk_implies ctx f1 eq in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 (* (assert (forall ((x effect) (y effect))
         ( =>    (same x y) (same y x)))) *)
@@ -80,8 +76,7 @@ let same_symmetric ctx effect same =
 	let f2 = mk_app ctx same [y;x] in
 	let imply = mk_implies ctx f1 f2 in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 (* (assert (forall ((x effect) (y effect) (z effect))
         ( =>    (and (same x y) (same y z)) (same x z)))) *) 
@@ -96,8 +91,7 @@ let same_transitivity ctx effect same =
 	let sand = mk_and ctx [f1;f2] in
 	let imply = mk_implies ctx sand f3 in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 
 (* Vis Properties. *)
@@ -107,8 +101,7 @@ let vis_irreflexive ctx effect vis =
 	let fapp = mk_app ctx vis [ (List.nth vars 0); (List.nth vars 0) ] in 
 	let fnot = mk_not ctx fapp in
 	let qan = (Quantifier.mk_forall_const ctx vars fnot None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 
 (* (assert (forall ((x effect) (y effect))
@@ -122,8 +115,20 @@ let vis_anti_symmetric ctx effect vis =
 	let fnot = mk_not ctx f2 in
 	let imply = mk_implies ctx f1 fnot in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
+
+(* (assert (forall ((x effect) (y effect))
+        ( =>    (vis x y) (same x y)))) *) 
+let vis_same ctx effect vis same =
+	let x = (Expr.mk_const ctx (Symbol.mk_string ctx "x") effect) in 
+	let y = (Expr.mk_const ctx (Symbol.mk_string ctx "y") effect) in 
+	let vars = [x;y] in
+	let f1 = mk_app ctx vis [x;y] in 
+	let f2 = mk_app ctx same [x;y] in
+	let imply = mk_implies ctx f1 f2 in
+	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
+
 
 
 (* HB Properties. *)
@@ -133,16 +138,14 @@ let vis_anti_symmetric ctx effect vis =
 let hb_define ctx effect vis so hb =
 	let x = (Expr.mk_const ctx (Symbol.mk_string ctx "x") effect) in 
 	let y = (Expr.mk_const ctx (Symbol.mk_string ctx "y") effect) in 
-	let z = (Expr.mk_const ctx (Symbol.mk_string ctx "z") effect) in
-	let vars = [x;y;z] in
+	let vars = [x;y] in
 	let f1 = mk_app ctx vis [x;y] in 
 	let f2 = mk_app ctx so [x;y] in
 	let f3 = mk_app ctx hb [x;y] in
 	let hor = mk_or ctx [f1;f2] in
 	let imply = mk_implies ctx hor f3 in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 (* (assert (forall ((x effect)) (not (hb x x)))) *)
 let hb_irreflexive ctx effect hb =
@@ -150,8 +153,7 @@ let hb_irreflexive ctx effect hb =
 	let fapp = mk_app ctx hb [ (List.nth vars 0); (List.nth vars 0) ] in 
 	let fnot = mk_not ctx fapp in
 	let qan = (Quantifier.mk_forall_const ctx vars fnot None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 
 (* (assert (forall ((x effect) (y effect) (z effect))
     (=> (and (hb x y) (hb y z)) (hb x z)))) *)
@@ -166,8 +168,21 @@ let hb_transitivity ctx effect hb =
 	let sand = mk_and ctx [f1;f2] in
 	let imply = mk_implies ctx sand f3 in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
+
+(* (assert (forall ((x effect) (y effect))
+        ( =>    (vis x y) (not (vis y x))))) *)
+let hb_anti_symmetric ctx effect hb =
+	let x = (Expr.mk_const ctx (Symbol.mk_string ctx "x") effect) in 
+	let y = (Expr.mk_const ctx (Symbol.mk_string ctx "y") effect) in 
+	let vars = [x;y] in
+	let f1 = mk_app ctx hb [x;y] in 
+	let f2 = mk_app ctx hb [y;x] in
+	let fnot = mk_not ctx f2 in
+	let imply = mk_implies ctx f1 fnot in
+	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
+
 
 (* 
 (assert (forall ((x effect) (y effect) (z effect))
@@ -209,11 +224,11 @@ let hb_acyclic ctx effect hb oper vis same rval kind =
 	let cand = mk_and ctx [aand;vand2] in
 
 	let f9 = mk_app ctx rval [x] in
-	let f10 = mk_app ctx rval [z] in
+	let f10 = mk_app ctx rval [y] in
 	let veq = mk_eq ctx f9 f10 in
+	let nveq = mk_not ctx veq in
 
-	let imply = mk_implies ctx cand veq in
+	let imply = mk_implies ctx cand nveq in
 	let qan = (Quantifier.mk_forall_const ctx vars imply None [] [] None None) in
-	let qexp = Quantifier.expr_of_quantifier qan in
-	(Printf.printf "Quantifier X: %s\n" (Quantifier.to_string qan) ; qexp)
+	let qexp = Quantifier.expr_of_quantifier qan in qexp
 

@@ -16,6 +16,7 @@ open RwOperations
 open StaticRelations
 open DefinedLemmas
 open EncodeConstraint
+open EncodeContracts
 open TestMethods
 open Printf
 
@@ -158,7 +159,7 @@ prgvar	- unique program variables (x,y,...)
 test	- litmus testcase
 totops	- all the instructions.
 totins	- count of all instructions. *)
-let addBasicDecl ctx prgvar test totops totins ownwrt wrlist = 
+let addBasicDecl ctx prgvar test totops totins ownwrt wrlist contrct = 
 	(* Enumeration "kind" of effect. *)
 	let rsym = Symbol.mk_string ctx "R" in  
 	let wsym = Symbol.mk_string ctx "W" in
@@ -244,33 +245,31 @@ let same_q3 = same_transitivity ctx effect same in
 
 let vis_q1 = vis_irreflexive ctx effect vis in
 let vis_q2 = vis_anti_symmetric ctx effect vis in
+let vis_q3 = vis_same ctx effect vis same in
 
 let hb_q1 = hb_irreflexive ctx effect hb in
 let hb_q2 = hb_define ctx effect vis so hb in
 let hb_q3 = hb_transitivity ctx effect hb in
+let hb_q4 = hb_anti_symmetric ctx effect hb in
 let hb_all = hb_acyclic ctx effect hb oper vis same rval kind in 
 
+
 let rels  = [so_q1;so_q2;so_q3;same_q1;same_q2;same_q3;
-		vis_q1;vis_q2;hb_q1;hb_q2;hb_q3;hb_all] in 
-let nvlist = List.append vlist rels in 
-
+		vis_q1;vis_q2;vis_q3;hb_q1;hb_q2;hb_q3;hb_q4;hb_all] in
+let nvlist = List.append vlist rels in
+		 
 let cnstr = assertConstraints ctx rval test.cns efftbl in
-let clist = List.append nvlist [cnstr] in
+let clist = List.append nvlist [cnstr] in  (* Valid till here. *)
 
-(*
-let eq = (addToGoal ctx effect hlist) in
-	(printf "Starting solver: \n"; 
-	constSolver ctx eq)
-*)
-(printf "Starting solver: \n"; constSolver ctx clist)
-(*
-printf "Hello addBasicDecl\n"
-*)
+let cntlist = assertContracts ctx vis so same effect oper kind contrct in
+
+let pgencode = List.append clist cntlist in
+
+(printf "Starting solver: \n"; constSolver ctx pgencode)
 
 
 
-
-let distZ3Code test wrlist ownwrt prgvar totops totins = 
+let distZ3Code test wrlist ownwrt prgvar totops totins contrct = 
 	try (
 		if not (Log.open_ "z3.log") then
 			printf "Failure with log.\n"
@@ -281,7 +280,7 @@ let distZ3Code test wrlist ownwrt prgvar totops totins =
 	(*		let eff = (Expr.mk_const ctx (Symbol.mk_string ctx "A") (Integer.mk_sort ctx)) in
 			let eq = Boolean.mk_eq ctx (Integer.mk_numeral_i ctx 0) eff in
 *)			let bdecl = addBasicDecl ctx prgvar test totops totins ownwrt 
-					wrlist in 	
+					wrlist contrct in 	
 			printf "end\n"
 		
 		)
