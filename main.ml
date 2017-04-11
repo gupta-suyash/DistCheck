@@ -1,6 +1,10 @@
 open Printf
-open TempOp
+open RwOperations
 open ContractLang
+(*open SymbolicExec*)
+(*open Relationships*)
+(*open RelStructures*)
+open DistSymbolicExec 
 
 let testcase = Sys.argv.(1)
 let storesem = Sys.argv.(2)
@@ -9,7 +13,10 @@ let storesem = Sys.argv.(2)
 let parse cdbuf stbuf =
   let cdast = CodeParser.goal CodeLexer.read cdbuf in
   let stast = ContractParser.goal ContractLexer.read stbuf in
-  (pp_code cdast; printf "\n"; pp_st stast)
+  (pp_code cdast; printf "\n"; pp_st stast; printf "\n\n";
+   (*exploreProg cdast*)
+	symbExecution cdast stast
+  )
 
 let main () = 
 	let test = open_in testcase in 
