@@ -1,7 +1,7 @@
 (* Header *)
 
 %{
-open RwOperations
+open TempOp
 %}
 
 (* Tokens *)
@@ -24,9 +24,6 @@ open RwOperations
 %token FORALL
 %token READ
 %token WRITE
-%token IF
-%token THEN
-%token ELSE
 %token TEST
 %token EOF
 
@@ -37,8 +34,7 @@ open RwOperations
 %nonassoc NOT 
 
 (* Define start point *)
-(*%start <TempOp.code> goal*)
-%start <RwOperations.code> goal
+%start <TempOp.code> goal
 
 %%
 
@@ -64,22 +60,12 @@ program:
 
 session:
 		| x = INT; 
-		  tl = statementList; 
+		  tl = taggedOperList; 
 		  DDASH { {sid=x; oper=tl;} }
 
-statementList:
-		| t = statement { [t] }
-		| t = statement m = statementList { t :: m }
-
-statement:
-		| t = taggedOper { TagOper t }
-		| ite = ifstatement { IfElse ite }
-
-ifstatement:
-		| x = ID; COLON; IF; r = rwop; EQUALS; y = INT; 
-		  THEN; LBRACE; st = statementList; RBRACE; 
-		  ELSE; LBRACE; se = statementList; RBRACE
-		  { {ifrd=(x,r); ifval=y; thenwr=st; elsewr=se;} } 	
+taggedOperList:
+		| t = taggedOper { [t] }
+		| t = taggedOper m = taggedOperList { t :: m } 
 
 taggedOper:	
 		| x = ID; COLON; r = rwop SEMICOLON { (x,r) }
@@ -97,7 +83,7 @@ constr:
 		  { NotExistsState p }
 
 prop:
-		| x = ID; COLON; y = ID; EQUALS; z = INT
+		| x = INT; COLON; y = ID; EQUALS; z = INT
 		  { Atom(x,(y,z)) } 
 		| NOT; p = prop { Not p }
 		| p1 = prop; AND; 	p2 = prop { And (p1 :: p2 :: []) }

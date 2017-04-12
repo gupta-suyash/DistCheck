@@ -1,0 +1,36 @@
+### Starting build.
+# Target: main.ml.depends, tags: { extension:ml, file:main.ml, ocaml, ocamldep, quiet }
+ocamldep.opt -modules main.ml > main.ml.depends # cached
+# Target: codeLexer.mll, tags: { extension:mll, file:codeLexer.mll, lexer, ocaml, ocamllex, quiet }
+ocamllex.opt -q codeLexer.mll # cached
+# Target: codeLexer.ml.depends, tags: { extension:ml, file:codeLexer.ml, ocaml, ocamldep, quiet }
+ocamldep.opt -modules codeLexer.ml > codeLexer.ml.depends # cached
+# Target: codeParser.mly.depends, tags: { extension:mly, file:codeParser.mly, infer, menhir_ocamldep, ocaml, ocamldep, quiet }
+menhir --raw-depend --ocamldep 'ocamldep.opt -modules' codeParser.mly > codeParser.mly.depends # cached
+# Target: tempOp.ml.depends, tags: { extension:ml, file:tempOp.ml, ocaml, ocamldep, quiet }
+ocamldep.opt -modules tempOp.ml > tempOp.ml.depends
+# Target: tempOp.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:tempOp.cmo, file:tempOp.ml, implem, ocaml, quiet }
+ocamlc.opt -c -o tempOp.cmo tempOp.ml
+# Target: codeParser.mly, tags: { byte, compile, extension:ml, extension:mly, file:codeParser.ml, file:codeParser.mly, infer, menhir, ocaml, parser, quiet }
+menhir --ocamlc ocamlc.opt --infer codeParser.mly # cached
+# Target: codeParser.mli.depends, tags: { extension:mli, file:codeParser.mli, ocaml, ocamldep, quiet }
+ocamldep.opt -modules codeParser.mli > codeParser.mli.depends # cached
+# Target: codeParser.cmi, tags: { byte, compile, extension:mli, file:codeParser.mli, interf, ocaml, quiet }
+ocamlc.opt -c -o codeParser.cmi codeParser.mli # cached
+# Target: codeLexer.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:codeLexer.cmo, file:codeLexer.ml, implem, ocaml, quiet }
+ocamlc.opt -c -o codeLexer.cmo codeLexer.ml # cached
+# Target: main.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:main.cmo, file:main.ml, implem, ocaml, quiet }
+ocamlc.opt -c -o main.cmo main.ml # cached
+# Target: codeParser.ml.depends, tags: { extension:ml, file:codeParser.ml, ocaml, ocamldep, quiet }
+ocamldep.opt -modules codeParser.ml > codeParser.ml.depends # cached
+# Target: tempOp.cmx, tags: { compile, extension:cmx, extension:ml, file:tempOp.cmx, file:tempOp.ml, implem, native, ocaml, quiet }
+ocamlopt.opt -c -o tempOp.cmx tempOp.ml
+# Target: codeParser.cmx, tags: { compile, extension:cmx, extension:ml, file:codeParser.cmx, file:codeParser.ml, implem, native, ocaml, quiet }
+ocamlopt.opt -c -o codeParser.cmx codeParser.ml
+# Target: codeLexer.cmx, tags: { compile, extension:cmx, extension:ml, file:codeLexer.cmx, file:codeLexer.ml, implem, native, ocaml, quiet }
+ocamlopt.opt -c -o codeLexer.cmx codeLexer.ml
+# Target: main.cmx, tags: { compile, extension:cmx, extension:ml, file:main.cmx, file:main.ml, implem, native, ocaml, quiet }
+ocamlopt.opt -c -o main.cmx main.ml
+# Target: main.native, tags: { dont_link_with, extension:native, file:main.native, link, native, ocaml, program, quiet }
+ocamlopt.opt tempOp.cmx codeParser.cmx codeLexer.cmx main.cmx -o main.native
+# Compilation successful.

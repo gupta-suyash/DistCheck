@@ -11,10 +11,22 @@ type rwop =
 (* taggedOper = a Rx *)
 type taggedOper = string * rwop
 
+(* If Read id = val then statement else statement. *)
+type ifstatement = {
+	ifrd: taggedOper;
+	ifval: int; 
+	thenwr: statement list;
+	elsewr: statement list;
+}
+and
+statement = 
+| TagOper of taggedOper
+| IfElse of ifstatement  
+
 (* Session, a collection of operations *)
 type session = {
 	sid : int;
-	oper: taggedOper list;
+	oper: statement list;
 }
 
 (* Program is a list of operations. *)
@@ -44,6 +56,94 @@ type code = {
 }
 
 
+(*
+let addToTable dtb wr -> (
+	match wr with (l,op) ->
+	match op with ->
+	| Read s -> Hashtbl.add dtb s wr
+	| Write v -> Hashtbl.add dtb (fst s) wr ); dtb
+*)
+
+
+
+(* Make use chains, which tell all writes in same session. 
+oplist 	- list of all the defs for a read, that is set of writes.
+op	- the key operation
+usetb	- hashtable for storing operations. *)
+let rec addAllToTbl oplist op usetb = 
+	match oplist with 
+	| [] -> usetb
+	| h::t -> (Hashtbl.add usetb op h;
+			addAllToTbl t op usetb) 
+
+(* Deals with adding a tagged Operation to usechains. 
+top	- tagged operation. *)
+let addOperToUseChains top (deftb,usetb) = 
+	match top with (l,op) ->
+	match op with 
+	| Read s -> (deftb, addAllToTbl 
+	      	(List.rev (Hashtbl.find_all deftb s)) top usetb)
+	| Write v -> (Hashtbl.add deftb (fst v) top; (deftb,usetb))
+
+
+(* Unifies the set of writes present in "then" and "else" branches. 
+dtb	- Hashtable containing unified writes per program variable.
+thtbl	- Hashtable consisting of writes for then branch.
+eltbl	- Hashtable consisting of writes for else branch. *)
+let rec consolidateBranch dtb thtbl eltbl prgvar = 
+	match prgvar with 
+	| [] -> dtb
+	| h::t -> let tlist = Hashtbl.find_all thtbl h in 
+		  let elist = Hashtbl.find_all eltbl h in 
+		  let clist = List.append tlist elist in 
+		  let slist = List.sort_uniq compare clist in 
+		  let ndtb = addAllToTbl slist h dtb in 
+		  consolidateBranch ndtb thtbl eltbl t 
+		
+		  
+(* Constructs def/use chains. 
+oplist - set of effects.
+(deftb,usetb) - hashtables for storing def/use chains. 
+prgvar	- list of program variables. *) 	 
+let rec useChains oplist (deftb,usetb) prgvar = 
+	match oplist with 
+	| [] -> (deftb,usetb)
+	| h::t -> useChains t (
+		  match h with 
+		  | TagOper top -> 
+			let ntbl = addOperToUseChains top (deftb,usetb) in 
+			(fst ntbl, snd ntbl)
+		  | IfElse ifst -> 
+			let mtbl = addOperToUseChains ifst.ifrd (deftb, usetb) in
+			let thtbl = useChains ifst.thenwr 
+						(fst mtbl, snd mtbl) prgvar in
+			let eltbl = useChains ifst.elsewr 
+						(fst mtbl, snd thtbl) prgvar in 
+			let dtb = Hashtbl.create (List.length prgvar) in
+			let mergtbl = consolidateBranch dtb (fst thtbl) 
+					(fst eltbl) prgvar in	
+			(mergtbl, snd eltbl) ) 
+		  prgvar
+
+(* Consolidated list of read/write operators in a session. *)
+let rec getAllInSession stmts = 
+	match stmts with 
+	| [] -> []
+	| h::t -> List.append (
+		  match h with
+		  | TagOper top -> [top]  
+		  | IfElse ifst -> List.append [ifst.ifrd] (
+				   	List.append (getAllInSession ifst.thenwr)
+						(getAllInSession ifst.elsewr))) 
+		  (getAllInSession t)
+
+(* Single list of all operations. *)
+let rec getAllOperators prog = 
+	match prog with
+	| [] -> []
+	| h::t -> List.append (getAllOperators t) (getAllInSession h.oper)
+
+(*
 (* Methods on taggedOper. *)
 let compareSt x y = if (String.compare x y) == 0 
 			then true else false
@@ -70,12 +170,11 @@ let rec addToHashTable allOps hashtb count =
 	| [] -> hashtb
 	| h::t -> (Hashtbl.add hashtb h count; 
 			addToHashTable t hashtb (count+1))
+*)
 
-(* Single list of all operations. *)
-let rec getAllOperators prog = 
-	match prog with
-	| [] -> []
-	| h::t -> List.append (getAllOperators t) h.oper
+
+
+(*
 
 (* Add initial condition as Write operations, named as "i0,i1...". *)
 let rec addInitialCond init oplist count = 
@@ -83,30 +182,10 @@ let rec addInitialCond init oplist count =
 	| [] -> oplist
 	| h::t -> (("i" ^ (string_of_int count)), (Write h)) :: 
 			(addInitialCond t oplist (count+1))
+*)
 
-(* Make use chains, which tell all writes in same session. 
-oplist 	- list of all the defs for a read, that is set of writes.
-op	- the specific read
-usetb	- hashtable for storing reads. *)
-let rec addAllToTbl oplist op usetb = 
-	match oplist with 
-	| [] -> usetb
-	| h::t -> (Hashtbl.add usetb op h;
-			addAllToTbl t op usetb) 
 
-(* Constructs def/use chains. 
-oplist - set of effects.
-(deftb,usetb) - hashtables for storing def/use chains. *) 	 
-let rec useChains oplist (deftb,usetb) = 
-	match oplist with 
-	| [] -> (deftb,usetb)
-	| h::t -> useChains t (
-		  match h with (s,op) ->
-		  match op with 
-		  | Read s -> (deftb, addAllToTbl 
-				(List.rev (Hashtbl.find_all deftb s)) h usetb)
-		  | Write v -> (Hashtbl.add deftb (fst v) h; (deftb,usetb)))
-
+(*
 (* Creating a effect to session-id hashtable for quicker acces. *)
 let rec addEffToSess sid oplist hashtb = 
 	match oplist with 
@@ -117,7 +196,7 @@ let rec createEfftSessMap prog hashtb =
 	match prog with 
 	| [] -> hashtb
 	| h::t -> createEfftSessMap t (addEffToSess h.sid h.oper hashtb)
-
+*)
 
 (* Print methods *)
 
@@ -132,17 +211,34 @@ let pp_rwop oper =
 let pp_taggedOper toper =
 	match toper with (s,oper) -> (printf "%s:" s; pp_rwop oper)
 
-let pp_session_id sid = printf "Session %d\n" sid
-
-let rec pp_session_opers oplist = 
+let rec pp_listOfTaggedOper oplist = 
 	match oplist with 
 	| [] -> printf ""
-	| h :: t -> (pp_taggedOper h; printf "\n"; 
-			pp_session_opers t) 
+	| h::t -> (pp_taggedOper h; printf "\n"; pp_listOfTaggedOper t)
+
+let pp_session_id sid = printf "Session %d\n" sid
+
+let rec pp_session_statements oplist = 
+	match oplist with 
+	| [] -> printf ""
+	| h :: t -> (pp_statementtype h; printf "\n"; 
+			pp_session_statements t)
+
+and pp_statementtype st = 
+	match st with 
+	| TagOper oper -> pp_taggedOper oper
+	| IfElse ifst -> pp_ifelse ifst
+
+and pp_ifelse itest = 
+	printf "if "; pp_taggedOper itest.ifrd; printf " == ";	
+	printf "%d" itest.ifval; printf "\nthen {\n";
+	pp_session_statements itest.thenwr; printf " }\nelse {\n";
+	pp_session_statements itest.elsewr; printf " }"
+
 
 let pp_session sess = 
 	pp_session_id sess.sid;
-	pp_session_opers sess.oper	
+	pp_session_statements sess.oper
 
 let rec pp_program prog = 
 	match prog with 
@@ -182,7 +278,7 @@ let pp_constr cns =
 
 let pp_code ast = 
 	printf "Testcase:\n";
-	pp_initial ast.init; 
+	pp_initial ast.init; printf "\n";
 	pp_program ast.pg;
 	pp_constr ast.cns
 
@@ -199,7 +295,7 @@ let rec pp_use_chains oplist usehtb =
 	| h::t -> match h with (s,op) ->
 		  match op with 
 		  | Read s -> (pp_taggedOper h; printf " --> "; 
-				pp_taggedOper (Hashtbl.find usehtb h); 
+				pp_listOfTaggedOper (Hashtbl.find_all usehtb h); 
 				printf "\n"; pp_use_chains t usehtb)
 		  | Write v -> pp_use_chains t usehtb
 

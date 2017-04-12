@@ -33,9 +33,6 @@ rule read =
 	| "forall"		{ FORALL } 
 	| "read"		{ READ }
 	| "write"		{ WRITE }
-	| "if"			{ IF }
-	| "then"		{ THEN }
-	| "else"		{ ELSE }
 	| "Test"		{ TEST }
 	| id    		{ ID (Lexing.lexeme lexbuf) }
 	| int   		{ INT (int_of_string (Lexing.lexeme lexbuf)) }

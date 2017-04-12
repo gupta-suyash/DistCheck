@@ -1,0 +1,19 @@
+{x=1; y=0;}
+1
+a: write x=3;
+b: if read x = 3 
+   then {
+c: 	write x=4; 
+f:	write x=6;
+   }
+   else {
+d:	write x=5;
+g:	read x; 
+   }
+--
+2
+d: read x;
+e: write x=7;
+--
+Test:
+exists (d:x=1)
