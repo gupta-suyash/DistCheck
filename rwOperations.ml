@@ -162,11 +162,11 @@ let checkVar op1 op2 =
 	| Read x, Read y  	| Read x, Write (y,_) 
 	| Write (x,_), Read y 
 	| Write (x,_), Write (y,_) -> compareSt x y 
-(*	
+	
 let sameTagOper op1 op2 = 
 	if (compare (fst op1) (fst op2)) == 0 
 		then true else false
-
+(*
 let rec getIndex allOps op index = 
 	match allOps with 
 	| [] -> 0

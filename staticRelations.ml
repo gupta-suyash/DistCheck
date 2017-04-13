@@ -313,30 +313,74 @@ let rec assertVisRel ctx vis rval init totops ownwrt wrlist efftbl sidtb =
 			setVisRelations ctx vis rval init h sid ownwrt wrlist efftbl
 		  | _ -> [])
 
-(*
+
+(* No Vis relationships. *)
+let rec makeAndRval ctx rhd rtl = 
+	match rtl with 
+	| [] -> rhd
+	| h::t -> mk_and ctx [h;(makeAndRval ctx rhd t)]
+
+
 let rec setNoRvalSess ctx rval top1 sess efftbl flag = 
 	match sess with
-	| [] -> 
-	| h::t -> match h with 
-		  | TagOper top2 ->
-		  | IfElse ifst -> 
-			let eqth = setNoRvalSess ctx rval top1 ifst.thenwr efftbl 1 in
-			let eqel = setNoRvalSess ctx rval top1 ifst.thenwr efftbl 1 in
+	| [] -> []
+	| h::t -> match top1 with (s1,op1) ->
+		  let eff1 = Hashtbl.find efftbl s1 in
+		  let fval1 = mk_app ctx rval [eff1] in
+		  match h with 
+		  | TagOper top2 -> if flag == 1 
+				    then match top2 with (s2,op2) ->
+					 match op2 with 
+					 | Read n -> (setNoRvalSess ctx rval top1 t efftbl flag)
+					 | Write v -> let eff2 = Hashtbl.find efftbl s2 in
+						      let fval2 = mk_app ctx rval [eff2] in 
+						      let eq = mk_eq ctx fval1 fval2 in 
+						      let neq = mk_not ctx eq in
+						      [neq] @ (setNoRvalSess ctx rval top1 t efftbl flag)
+				    else setNoRvalSess ctx rval top1 t efftbl flag 
+		  | IfElse ifst ->
+			if sameTagOper ifst.ifrd top1
+			then	(setNoRvalSess ctx rval top1 t efftbl 0)
+			else  	let eqth = setNoRvalSess ctx rval top1 ifst.thenwr efftbl 1 in
+				let eqel = setNoRvalSess ctx rval top1 ifst.elsewr efftbl 1 in
+				let thlen = List.length eqth in
+				let ellen = List.length eqel in
+
+				match ifst.ifrd with (s3,op3) ->
+				let effif = Hashtbl.find efftbl s3 in 
+				let fval = mk_app ctx rval [effif] in
+				let eq = mk_eq ctx fval (Integer.mk_numeral_i ctx ifst.ifval) in 
+				
+				let thlist = ( 
+					if thlen > 1 
+					then makeAndRval ctx (List.hd eqth) (List.tl eqth)
+					else 	if thlen > 0 
+						then List.hd eqth
+						else mk_eq ctx fval1 fval1 ) in
+				let ellist = ( 
+					if ellen > 1 
+					then makeAndRval ctx (List.hd eqel) (List.tl eqel)
+					else 	if ellen > 0 
+						then List.hd eqel
+						else mk_eq ctx fval1 fval1 ) in
+	
+				let ifcond = mk_ite ctx eq ellist thlist in 
+				ifcond :: (setNoRvalSess ctx rval top1 t efftbl 0)
 			
 
 let rec setNoRval ctx rval top1 prog efftbl = 
 	match prog with 
-	| [] ->
-	| h::t -> setNoRvalSess ctx rval top1 h efftbl 0	
+	| [] -> []
+	| h::t -> (setNoRvalSess ctx rval top1 h.oper efftbl 0) @ 
+			(setNoRval ctx rval top1 t efftbl)
  
 
 let rec assertNotRval ctx rval totops prog efftbl = 
 	match totops with 
-	| [] ->
+	| [] -> []
 	| h::t -> match h with (s,op) -> 
-		  match op with ->
-		  | Read s -> setNotRval ctx rval h prog efftbl 
-		  | Write v ->  
-
-*)
+		  match op with 
+		  | Read n -> (setNoRval ctx rval h prog efftbl) @ 
+				(assertNotRval ctx rval t prog efftbl)
+		  | Write v -> assertNotRval ctx rval t prog efftbl
 

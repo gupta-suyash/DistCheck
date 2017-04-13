@@ -235,7 +235,8 @@ let tlist1 = List.append tlist hlist3 in
 let ulist = List.append tlist1 hlist4 in 
 let ulist2 = List.append ulist sobind in 
 let ulist3 = List.append ulist2 samebind in 
-let vlist = List.append ulist3 visbind in (*
+let vilist = List.append ulist3 visbind in 
+let vlist = List.append vilist notrval in 
 
 let so_q1 = so_irreflexive ctx effect so in 
 let so_q2 = so_same_session ctx effect so ssid same in
@@ -258,16 +259,16 @@ let hb_all = hb_acyclic ctx effect hb oper vis same rval kind in
 
 let rels  = [so_q1;so_q2;so_q3;same_q1;same_q2;same_q3;
 		vis_q1;vis_q2;vis_q3;hb_q1;hb_q2;hb_q3;hb_q4;hb_all] in
-let nvlist = List.append vlist rels in
+let nvlist = List.append vlist rels in 
 		 
 let cnstr = assertConstraints ctx rval test.cns efftbl in
-let clist = List.append nvlist [cnstr] in  (* Valid till here. *)
+let clist = List.append nvlist [cnstr] in 
 
 let cntlist = assertContracts ctx vis so same effect oper kind contrct in
 
-let pgencode = List.append clist cntlist in *)
+let pgencode = List.append clist cntlist in 
 
-(printf "Starting solver: \n"; constSolver ctx vlist)
+(printf "Starting solver: \n"; constSolver ctx pgencode)
 
 
 (*
