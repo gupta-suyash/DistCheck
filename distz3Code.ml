@@ -20,28 +20,35 @@ open EncodeContracts
 open TestMethods
 open Printf
 
+
+
+let addOperSsid ctx top ssid sid efftbl itbl = 
+	match top with (s,op) -> 
+	let eff = Hashtbl.find efftbl s in
+	let fapp = mk_app ctx ssid [eff] in 
+	let eq = mk_eq ctx fapp (Integer.mk_numeral_i ctx sid) in 
+		(Hashtbl.add itbl s eq; itbl)
+
 (* Asserts (ssid effect) == int  --> sid 
-ctx 	- context
 ssid	- z3 function declaration for ssid
 sid	- session id
-oplist	- list of operations in a session.
-efftbl	- hashtable of all effects.
-itble	- stores are session id assertions. *)
-let rec setSsid ctx ssid sid oplist efftbl itbl = 
-	match oplist with 
+stlist	- list of statements in a session.
+itbl	- stores are session id assertions. *)
+let rec setSsid ctx ssid sid stlist efftbl itbl = 
+	match stlist with 
 	| [] -> itbl
-	| h::t -> match h with (s,op) -> 
-		  let eff = Hashtbl.find efftbl s in
-		  let fapp = mk_app ctx ssid [eff] in 
-		  let eq = mk_eq ctx fapp (Integer.mk_numeral_i ctx sid) in 
-			   (Hashtbl.add itbl s eq; setSsid ctx ssid sid t efftbl itbl)
-
+	| h::t -> setSsid ctx ssid sid t efftbl (
+		  match h with 
+		  | TagOper top -> addOperSsid ctx top ssid sid efftbl itbl
+		  | IfElse ifst -> let mtbl = addOperSsid ctx ifst.ifrd ssid sid efftbl itbl in 
+				   let ttbl = setSsid ctx ssid sid ifst.thenwr efftbl mtbl in
+				   setSsid ctx ssid sid ifst.elsewr efftbl ttbl )
+				   
 (* Calls for creating assertions (ssid effect) == int  --> sid 
-ctx 	- context
 ssid	- z3 function declaration for ssid
 prog	- list of all sessions.
 efftbl	- hashtable of all effects.
-itble	- stores are session id assertions. *)
+itbl	- stores are session id assertions. *)
 let rec assertSsid ctx ssid prog efftbl itbl = 
 	match prog with 
 	| [] -> itbl
@@ -49,7 +56,6 @@ let rec assertSsid ctx ssid prog efftbl itbl =
 			(setSsid ctx ssid h.sid h.oper efftbl itbl)
 
 (* Asserts (rval effect) == int --> value 
-ctx 	- context
 rval	- z3 function declaration for rval
 oplist	- list of operations in a session.
 efftbl	- hashtable of all effects.
@@ -76,7 +82,6 @@ let rec getEffSymbol opid vlist count =
 		  then count else (getEffSymbol opid t (count+1))
 
 (* Calls for creating assertions (sval effect) == symbol -> x,y
-ctx 	- context
 sval	- z3 function declaration for sval
 oplist	- list of operations in a session.
 efftbl	- hashtable of all effects.
@@ -95,7 +100,6 @@ let rec assertSval ctx sval oplist efftbl stbl var vsymlst =
 		  assertSval ctx sval t efftbl stbl var vsymlst)
 
 (* Asserts (oper effect) ==  symbol -> read/write. 
-ctx 	- context
 oper	- z3 function declaration for oper
 oplist	- list of operations in a session.
 efftbl	- hashtable of all effects.
@@ -155,10 +159,7 @@ let constSolver ctx gset =
 
 (* Basic Definitions:
 ctx 	- context
-prgvar	- unique program variables (x,y,...)
-test	- litmus testcase
-totops	- all the instructions.
-totins	- count of all instructions. *)
+prgvar	- unique program variables (x,y,...) *)
 let addBasicDecl ctx prgvar test totops totins ownwrt wrlist contrct = 
 	(* Enumeration "kind" of effect. *)
 	let rsym = Symbol.mk_string ctx "R" in  
@@ -223,6 +224,7 @@ let addBasicDecl ctx prgvar test totops totins ownwrt wrlist contrct =
 	(* Assert static vis bindings. *)
 	let visbind = assertVisRel ctx vis rval test.init totops 
 			ownwrt wrlist efftbl sidtbl in
+	let notrval = assertNotRval ctx rval totops test.pg efftbl in
 
 let hlist1 = Hashtbl.fold (fun x y z -> y :: z) aoper [] in 
 let hlist2 = Hashtbl.fold (fun x y z -> y :: z) asval [] in
@@ -230,10 +232,10 @@ let hlist3 = Hashtbl.fold (fun x y z -> y :: z) arval [] in
 let hlist4 = Hashtbl.fold (fun x y z -> y :: z) assid [] in
 let tlist = List.append hlist1 hlist2 in 
 let tlist1 = List.append tlist hlist3 in
-let ulist = List.append tlist1 hlist4 in
-let ulist2 = List.append ulist sobind in
-let ulist3 = List.append ulist2 samebind in
-let vlist = List.append ulist3 visbind in
+let ulist = List.append tlist1 hlist4 in 
+let ulist2 = List.append ulist sobind in 
+let ulist3 = List.append ulist2 samebind in 
+let vlist = List.append ulist3 visbind in (*
 
 let so_q1 = so_irreflexive ctx effect so in 
 let so_q2 = so_same_session ctx effect so ssid same in
@@ -263,12 +265,18 @@ let clist = List.append nvlist [cnstr] in  (* Valid till here. *)
 
 let cntlist = assertContracts ctx vis so same effect oper kind contrct in
 
-let pgencode = List.append clist cntlist in
+let pgencode = List.append clist cntlist in *)
 
-(printf "Starting solver: \n"; constSolver ctx pgencode)
+(printf "Starting solver: \n"; constSolver ctx vlist)
 
 
-
+(*
+test	- Litmus test 
+wrlist	- List of writes in each session.
+ownwrt	- hashtable containing set of writes for each read.
+prgvar	- program variable
+totops	- list of all read/write operations.
+contrct	- store semantics as contracts. *)
 let distZ3Code test wrlist ownwrt prgvar totops totins contrct = 
 	try (
 		if not (Log.open_ "z3.log") then
@@ -277,9 +285,7 @@ let distZ3Code test wrlist ownwrt prgvar totops totins contrct =
 			printf "Running Z3\n";
 			let cfg = [("model", "true"); ("proof", "false")] in
 			let ctx = (mk_context cfg) in 
-	(*		let eff = (Expr.mk_const ctx (Symbol.mk_string ctx "A") (Integer.mk_sort ctx)) in
-			let eq = Boolean.mk_eq ctx (Integer.mk_numeral_i ctx 0) eff in
-*)			let bdecl = addBasicDecl ctx prgvar test totops totins ownwrt 
+			let bdecl = addBasicDecl ctx prgvar test totops totins ownwrt 
 					wrlist contrct in 	
 			printf "end\n"
 		

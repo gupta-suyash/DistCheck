@@ -16,28 +16,104 @@ open RwOperations
 open TestMethods
 open Printf
 
+(* Sets Not so relationship between the statements in the then and 
+else branches. *)
+let setNotSoOper ctx so top1 top2 efftbl = 
+	match top1 with (s1,opr1) -> 
+	match top2 with (s2,opr2) -> 
+	if checkVar opr1 opr2 
+	then	let eff1 = Hashtbl.find efftbl s1 in
+		let eff2 = Hashtbl.find efftbl s2 in
+		let fapp1 = mk_app ctx so [eff1;eff2] in 
+		let fapp2 = mk_app ctx so [eff2;eff1] in
+		let eq1 = mk_eq ctx fapp1 (mk_false ctx) in
+		let eq2 = mk_eq ctx fapp2 (mk_false ctx) in
+		[eq1;eq2]
+	else []
+
+let rec setNotSoAll ctx so top1 elist efftbl = 
+	match elist with 
+	| [] -> [] 
+	| h::t -> List.append ( match h with 
+		  | TagOper top2 -> setNotSoOper ctx so top1 top2 efftbl
+		  | IfElse ifst -> 
+			let scond = setNotSoOper ctx so top1 ifst.ifrd efftbl in
+			let tstm = setNotSoAll ctx so top1 ifst.thenwr efftbl in
+			let estm = setNotSoAll ctx so top1 ifst.elsewr efftbl in
+			scond @ tstm @ estm )
+		  (setNotSoAll ctx so top1 t efftbl)
+
+let rec setNotSo ctx so tlist elist efftbl = 
+	match tlist with 
+	| [] -> []
+	| h::t -> List.append ( match h with 
+		  | TagOper top -> setNotSoAll ctx so top elist efftbl
+		  | IfElse ifst -> 
+			let scond = setNotSoAll ctx so ifst.ifrd elist efftbl in
+			let tstm = setNotSo ctx so ifst.thenwr elist efftbl in
+			let estm = setNotSo ctx so ifst.elsewr elist efftbl in
+			scond @ tstm @ estm )
+		  (setNotSo ctx so t elist efftbl)
+
+
 (* Asserts forall effect2, (so effect1 effect2) = true (if possible) 
 op1	- instruction for effect1 *)
+let setSoTagOper ctx so top1 top2 efftbl = 
+	match top1 with (s1,opr1) -> 
+	match top2 with (s2,opr2) -> 
+	if checkVar opr1 opr2 
+	then	let eff1 = Hashtbl.find efftbl s1 in
+		let eff2 = Hashtbl.find efftbl s2 in
+		let fapp = mk_app ctx so [eff1;eff2] in 
+		[ mk_eq ctx fapp (mk_true ctx) ]
+	else []
+
 (* Extra but correct bindings being generated. 
 No use of trasitivity property then. *)
-let rec relateSo ctx so op1 oplist efftbl =
-	match oplist with
+let rec relateSo ctx so op1 stlist efftbl =
+	match stlist with
 	| [] -> []
-	| h::t -> match op1 with (s1,opr1) -> 
-		  match h with (s2,opr2) -> 
-		  if checkVar opr1 opr2 
-		  then	let eff1 = Hashtbl.find efftbl s1 in
-			let eff2 = Hashtbl.find efftbl s2 in
-			let fapp = mk_app ctx so [eff1;eff2] in 
-			(mk_eq ctx fapp (mk_true ctx)) :: 
-			relateSo ctx so op1 t efftbl
-		  else	relateSo ctx so op1 t efftbl
+	| h::t -> List.append ( match h with 
+		  | TagOper top -> setSoTagOper ctx so op1 top efftbl
+		  | IfElse ifst -> 
+			let scond = setSoTagOper ctx so op1 ifst.ifrd efftbl in
+			let tstm = relateSo ctx so op1 ifst.thenwr efftbl in
+			let estm = relateSo ctx so op1 ifst.elsewr efftbl in
+			scond @ tstm @ estm )
+		  (relateSo ctx so op1 t efftbl)
+
+let rec setSoOutBlock ctx so ownstm othstm efftbl = 
+	match ownstm with 
+	| [] -> [] 
+	| h::t -> List.append (setSoOutBlock ctx so t othstm efftbl) (
+		  match h with 
+		  | TagOper top -> relateSo ctx so top othstm efftbl
+		  | IfElse ifst ->
+			let ilist = relateSo ctx so ifst.ifrd othstm efftbl in 
+			let tlist = setSoOutBlock ctx so ifst.thenwr 
+							othstm efftbl in
+			let elist = setSoOutBlock ctx so ifst.elsewr 
+							othstm efftbl in
+			List.append (List.append ilist tlist) elist )
+			
 
 let rec setSoBinding ctx so oplist efftbl =
 	match oplist with 
 	| [] -> []
-	| h::t -> List.append (setSoBinding ctx so t efftbl) 
-				(relateSo ctx so h t efftbl)
+	| h::t -> List.append (setSoBinding ctx so t efftbl) (
+		  match h with 
+		  | TagOper top -> relateSo ctx so top t efftbl
+		  | IfElse ifst -> 
+			let alist = List.append 
+					(List.append ifst.thenwr ifst.elsewr) t in
+			let icond = relateSo ctx so ifst.ifrd alist efftbl in 
+			let tostm = setSoBinding ctx so ifst.thenwr efftbl in 
+			let tdstm = setSoOutBlock ctx so ifst.thenwr t efftbl in
+			let eostm = setSoBinding ctx so ifst.elsewr efftbl in 
+			let edstm = setSoOutBlock ctx so ifst.elsewr t efftbl in
+			let ntstm = setNotSo ctx so ifst.thenwr 
+						ifst.elsewr efftbl in
+			icond @ tostm @ tdstm @ eostm @ edstm @ ntstm)
 
 
 (* Sets so bindings. 
@@ -143,9 +219,11 @@ let rec addAllRval ctx rval ieff velse wrset efftbl =
 let rec getVisWrites rd oplist = 
 	match oplist with 
 	| [] -> []
-	| h::t -> if (checkVar (snd rd) (snd h))
-		  then h :: (getVisWrites rd t)
-		  else (getVisWrites rd t)
+	| h::t -> match h with 
+		  | TagOper top -> if (checkVar (snd rd) (snd top))
+		 	 	   then top :: (getVisWrites rd t)
+		  		   else (getVisWrites rd t)
+		  | IfElse st -> (getVisWrites rd t) (* Should not come here. *)
 
 let rec addVisOther rd sid wrlist = 
 	match wrlist with 
@@ -235,4 +313,30 @@ let rec assertVisRel ctx vis rval init totops ownwrt wrlist efftbl sidtb =
 			setVisRelations ctx vis rval init h sid ownwrt wrlist efftbl
 		  | _ -> [])
 
+(*
+let rec setNoRvalSess ctx rval top1 sess efftbl flag = 
+	match sess with
+	| [] -> 
+	| h::t -> match h with 
+		  | TagOper top2 ->
+		  | IfElse ifst -> 
+			let eqth = setNoRvalSess ctx rval top1 ifst.thenwr efftbl 1 in
+			let eqel = setNoRvalSess ctx rval top1 ifst.thenwr efftbl 1 in
+			
+
+let rec setNoRval ctx rval top1 prog efftbl = 
+	match prog with 
+	| [] ->
+	| h::t -> setNoRvalSess ctx rval top1 h efftbl 0	
+ 
+
+let rec assertNotRval ctx rval totops prog efftbl = 
+	match totops with 
+	| [] ->
+	| h::t -> match h with (s,op) -> 
+		  match op with ->
+		  | Read s -> setNotRval ctx rval h prog efftbl 
+		  | Write v ->  
+
+*)
 

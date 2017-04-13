@@ -1,6 +1,6 @@
 open Printf
 open RwOperations
-(*open Distz3Code*)
+open Distz3Code
 
 
 let findVarInOper top = 
@@ -89,6 +89,5 @@ let symbExecution test contrct =
 	(* Latest write comes last in the list. *)
 	let ownwrt = getSameSessWrites test.pg (defhtb,usehtb) test.init prgvar in
 	let wrlist = getWritesInSess test.pg in (* Get writes in each session. *)
-	pp_program wrlist
-(*	distZ3Code test wrlist (snd ownwrt) prgvar totops totins contrct
-*)	
+	distZ3Code test wrlist (snd ownwrt) prgvar totops totins contrct
+	

@@ -100,6 +100,13 @@ let rec consolidateBranch dtb thtbl eltbl prgvar =
 		  let ndtb = addAllToTbl slist h dtb in 
 		  consolidateBranch ndtb thtbl eltbl t 
 		
+let rec createNewTbl prgvar tmptb deftb = 
+	match prgvar with 
+	| [] -> tmptb
+	| h::t -> createNewTbl t (
+		  let oplist = List.rev (Hashtbl.find_all deftb h) in 
+		  addAllToTbl oplist h tmptb ) deftb
+
 		  
 (* Constructs def/use chains. 
 oplist - set of effects.
@@ -115,10 +122,12 @@ let rec useChains oplist (deftb,usetb) prgvar =
 			(fst ntbl, snd ntbl)
 		  | IfElse ifst -> 
 			let mtbl = addOperToUseChains ifst.ifrd (deftb, usetb) in
+			let tmptb = Hashtbl.create (List.length prgvar) in
+			let ttbl = createNewTbl prgvar tmptb deftb in
 			let thtbl = useChains ifst.thenwr 
 						(fst mtbl, snd mtbl) prgvar in
 			let eltbl = useChains ifst.elsewr 
-						(fst mtbl, snd thtbl) prgvar in 
+						(ttbl, snd thtbl) prgvar in 
 			let dtb = Hashtbl.create (List.length prgvar) in
 			let mergtbl = consolidateBranch dtb (fst thtbl) 
 					(fst eltbl) prgvar in	
@@ -143,7 +152,7 @@ let rec getAllOperators prog =
 	| [] -> []
 	| h::t -> List.append (getAllOperators t) (getAllInSession h.oper)
 
-(*
+
 (* Methods on taggedOper. *)
 let compareSt x y = if (String.compare x y) == 0 
 			then true else false
@@ -153,7 +162,7 @@ let checkVar op1 op2 =
 	| Read x, Read y  	| Read x, Write (y,_) 
 	| Write (x,_), Read y 
 	| Write (x,_), Write (y,_) -> compareSt x y 
-	
+(*	
 let sameTagOper op1 op2 = 
 	if (compare (fst op1) (fst op2)) == 0 
 		then true else false
@@ -185,18 +194,24 @@ let rec addInitialCond init oplist count =
 *)
 
 
-(*
+
 (* Creating a effect to session-id hashtable for quicker acces. *)
 let rec addEffToSess sid oplist hashtb = 
 	match oplist with 
 	| [] -> hashtb
-	| h::t -> (Hashtbl.add hashtb h sid; addEffToSess sid t hashtb)
+	| h::t -> match h with
+		  | TagOper top -> (Hashtbl.add hashtb top sid; 
+				   addEffToSess sid t hashtb)
+		  | IfElse ifst -> (Hashtbl.add hashtb ifst.ifrd sid; 
+				   let itb = addEffToSess sid ifst.thenwr hashtb in
+				   let etb = addEffToSess sid ifst.elsewr itb in 
+				   addEffToSess sid t etb)
 
 let rec createEfftSessMap prog hashtb =  
 	match prog with 
 	| [] -> hashtb
 	| h::t -> createEfftSessMap t (addEffToSess h.sid h.oper hashtb)
-*)
+
 
 (* Print methods *)
 
