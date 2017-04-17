@@ -281,13 +281,15 @@ let setVisRelations ctx vis rval init rd sid ownwrt wrlist efftbl =
 				(iff :: andrval :: rdeq :: vislist) 
 			else 	if (List.length totwrts) > 0  
 				then let thd = (List.hd totwrts) in
+				     let andrval = (addAllRval ctx rval ieff 
+							velse [thd] efftbl) in
 				     let viseq = makeVisImply ctx vis rval rd 
 								thd ieff efftbl in
 (* try mk_iplies on velse*)	     let eff = makeNotVis ctx vis rd thd efftbl in
 				     let feq = mk_eq ctx ieff velse in		
-				     let imply = mk_and ctx [eff; feq] in 
+				     let iff = mk_iff ctx feq eff in 
 				     let rdeq = makeRvals ctx rval ieff rd efftbl in	
-				     [imply;rdeq;viseq]
+				     [iff;andrval;rdeq;viseq]
 
 				else (mk_eq ctx ieff velse) :: [] ) in
 	orwrts
